@@ -1,2 +1,2 @@
 # jvocabdr
-Yet another vocabulary builder (web app)
+Yet another vocabulary builder (react)
