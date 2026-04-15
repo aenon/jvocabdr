@@ -199,3 +199,4 @@ match /decks/{deckId}/cards/{cardId}/progress/{progressId} {
 
 *Decisions made: 2026-04-14*
 *Wave 1 - Foundation*
+*Wave 2 - Frontend UI*
