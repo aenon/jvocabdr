@@ -1,36 +1,106 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Vocabulary Builder
+
+A spaced repetition vocabulary learning app built with Next.js and Firebase.
+
+## Features
+
+- **Fill-in-the-blank learning** - See the definition + first/last letters, fill in the middle
+- **Spaced repetition (SM-2)** - Forgetting curve scheduling for optimal retention
+- **Progress tracking** - Per-user card progress stored in Firestore
+- **Mobile-friendly** - Works on desktop and mobile browsers
+
+## Tech Stack
+
+- **Frontend:** Next.js 16 (App Router), TypeScript
+- **Backend:** Firebase (Auth, Firestore)
+- **Deployment:** Vercel
 
 ## Getting Started
 
-First, run the development server:
+### 1. Clone and install
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/aenon/jvocabdr.git
+cd jvocabdr
+bun install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Firebase Setup
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Create a Firebase project at https://console.firebase.google.com
+2. Enable **Authentication** → Google Sign-in
+3. Enable **Firestore Database**
+4. Get your config from **Project Settings** → **Your apps** → **Web app**
+5. Copy `.env.local.example` to `.env.local` and fill in values
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 3. Download Vocabulary Data
 
-## Learn More
+```bash
+# List available sources
+bun run vocab:list
 
-To learn more about Next.js, take a look at the following resources:
+# Download specific sources
+bun run vocab:download oxford-5000
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Download all sources
+bun run vocab:download-all
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 4. Seed Database
 
-## Deploy on Vercel
+```bash
+# Requires Firebase service account key
+# Get from Firebase Console → Project Settings → Service Accounts
+export FIREBASE_SERVICE_ACCOUNT_KEY=$(cat service-account.json | jq -Rs .)
+bun run lib/seed.ts
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 5. Run development server
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+bun run dev
+```
+
+Open http://localhost:3000
+
+## Project Structure
+
+```
+jvocabdr/
+├── app/                    # Next.js app router pages
+│   ├── page.tsx           # Sign-in page
+│   ├── game/page.tsx      # Main game page
+│   └── providers.tsx      # Auth context provider
+├── components/            # React components
+├── lib/                  # Core logic
+│   ├── firebase.ts       # Firebase client
+│   ├── auth.ts           # Authentication
+│   ├── scheduler.ts       # SM-2 algorithm
+│   ├── db.ts             # Firestore queries
+│   └── seed.ts           # Database seed script
+├── data/                 # Vocabulary data
+├── scripts/              # Utility scripts
+│   └── download-vocab.js # Download vocabulary sources
+└── docs/                 # Documentation
+```
+
+## Vocabulary Sources
+
+| Source | Levels | License |
+|--------|--------|----------|
+| Oxford 5000 | A1-C1 | Oxford (non-commercial) |
+| Oxford 3000 | A1-B2 | Oxford (non-commercial) |
+| CEFR-J | A1-C2 | CC BY-SA 4.0 |
+| Words CEFR | A1-C2 | MIT |
+| EFLLex | A1-C1 | CC BY-NC-SA 4.0 |
+
+## Deployment
+
+1. Push to GitHub
+2. Import project in Vercel
+3. Add environment variables in Vercel dashboard
+4. Deploy
+
+## License
+
+MIT

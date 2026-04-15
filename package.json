@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "vocab:list": "node scripts/download-vocab.js --list",
+    "vocab:download": "node scripts/download-vocab.js --download",
+    "vocab:download-all": "node scripts/download-vocab.js --download-all"
   },
   "dependencies": {
     "firebase": "^12.12.0",
