@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>xvocabdr</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1>xvocabdr</h1>
+      <nav class="nav" id="nav">
+        <button data-view="dashboard" class="active" aria-label="Dashboard">📊 Dashboard</button>
+        <button data-view="add" class="" aria-label="Add Word">✏️ Add Word</button>
+        <button data-view="quiz" class="" aria-label="Quiz">🧠 Quiz</button>
+      </nav>
+    </header>
+
+    <!-- Dashboard View -->
+    <section class="view active" data-view="dashboard">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <span class="stat-number" id="total-words">0</span>
+          <span class="stat-label">Total Words</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-number" id="review-words">0</span>
+          <span class="stat-label">In Review</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-number" id="mastered-words">0</span>
+          <span class="stat-label">Mastered</span>
+        </div>
+      </div>
+
+      <h2>Word Progress</h2>
+      <ul class="progress-list" id="progress-list">
+        <!-- filled dynamically -->
+      </ul>
+
+      <h2 style="margin-top: 2rem;">Recent Activity</h2>
+      <ul class="activity-list" id="recent-activity">
+        <!-- filled dynamically -->
+      </ul>
+    </section>
+
+    <!-- Add Word View -->
+    <section class="view" data-view="add">
+      <h2>Add a New Word</h2>
+      <form id="add-word-form">
+        <div class="form-group">
+          <label for="word-input">Word</label>
+          <input type="text" id="word-input" placeholder="e.g. ephemeral" required />
+        </div>
+
+        <div class="form-group">
+          <label for="definition-input">Definition</label>
+          <textarea id="definition-input" rows="3" placeholder="e.g. Lasting for a very short time." required></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="example-input">Example Sentence</label>
+          <textarea id="example-input" rows="2" placeholder='e.g. The beauty of the sunset was ephemeral.' required></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Add Word</button>
+      </form>
+
+      <h3 style="margin-top: 2rem;">Sample Words to Get Started</h3>
+      <div class="sample-words" id="sample-words">
+        <!-- filled dynamically -->
+      </div>
+    </section>
+
+    <!-- Quiz View -->
+    <section class="view" data-view="quiz">
+      <h2>Quiz</h2>
+
+      <div class="quiz-controls">
+        <button id="start-quiz" class="btn btn-primary">Start Quiz</button>
+        <span id="quiz-score" class="score-display"></span>
+      </div>
+
+      <div id="quiz-container" class="quiz-area">
+        <!-- quiz questions rendered here -->
+      </div>
+
+      <div id="quiz-result" class="quiz-result hidden">
+        <h3>Quiz Complete!</h3>
+        <p id="quiz-result-score"></p>
+        <button id="retake-quiz" class="btn btn-primary">Retake Quiz</button>
+        <button id="back-to-review" class="btn btn-secondary">Back to Dashboard</button>
+      </div>
+    </section>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+  </div>
+
+  <script src="/app.js"></script>
