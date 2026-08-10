@@ -387,9 +387,19 @@
   function showSpellingHint() {
     const q = quizQuestions[currentQuizIndex];
     const hint = document.getElementById('quiz-hint');
-    const first = q.word[0];
-    const blanks = '_'.repeat(q.word.length - 1);
-    hint.textContent = `Hint: ${first}${blanks} (${q.word.length} letters)`;
+    const w = q.word;
+    const len = w.length;
+
+    let display;
+    if (len <= 3) {
+      // 2-3 letters: show first letter only
+      display = w[0] + '_'.repeat(len - 1);
+    } else {
+      // 4+ letters: show first and last letter
+      display = w[0] + '_'.repeat(len - 2) + w[len - 1];
+    }
+
+    hint.innerHTML = `<span style="color:#94a3b8">Hint:</span> <strong style="letter-spacing:0.15em">${display}</strong> <span style="color:#64748b">(${len} letters)</span>`;
     hint.classList.remove('hidden');
   }
 
