@@ -157,14 +157,27 @@ header h1 { font-size: 1.5rem; color: #a78bfa; }
 .question-card .q-definition { font-size: 1.2rem; font-weight: 500; margin-bottom: 0.75rem; line-height: 1.4; }
 .question-card .q-example { font-size: 1.05rem; color: #cbd5e1; font-style: italic; margin-bottom: 1.25rem; }
 
-.spelling-input-row { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+/* ── Letter Slots ─────────────────────────── */
+.letter-slots { display: flex; gap: 0.4rem; margin-bottom: 1rem; flex-wrap: wrap; }
 
-.spelling-input {
-  flex: 1; background: #0f172a; color: #e2e8f0; border: 2px solid #334155;
-  padding: 0.75rem 1rem; border-radius: 8px; font-size: 1.1rem; outline: none;
+.letter-slot {
+  width: 44px; height: 52px; background: #0f172a; border: 2px solid #334155;
+  border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  font-size: 1.4rem; font-weight: 600; color: #e2e8f0; cursor: text;
+  transition: border-color .2s, background .2s; text-transform: lowercase;
+  outline: none; user-select: none;
 }
-.spelling-input:focus { border-color: #60a5fa; }
-.spelling-input:disabled { opacity: 0.6; }
+
+.letter-slot:focus {
+  border-color: #60a5fa; background: #1e293b;
+  box-shadow: 0 0 0 3px rgba(96,165,250,0.15);
+}
+
+.letter-slot.correct { border-color: #22c55e; background: rgba(34,197,94,0.1); color: #22c55e; }
+.letter-slot.wrong   { border-color: #ef4444; background: rgba(239,68,68,0.1); color: #ef4444; }
+.letter-slot.hinted  { border-color: #f59e0b; background: rgba(245,158,11,0.1); color: #f59e0b; }
+
+.quiz-actions { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 0.5rem; }
 
 .hint-btn {
   background: transparent; color: #94a3b8; border: none; cursor: pointer;
@@ -172,7 +185,7 @@ header h1 { font-size: 1.5rem; color: #a78bfa; }
 }
 .hint-btn:hover { color: #e2e8f0; }
 
-.spelling-feedback { margin-top: 0.75rem; font-size: 1rem; min-height: 1.5rem; }
+.spelling-feedback { margin-top: 0.5rem; font-size: 1rem; min-height: 1.5rem; }
 .spelling-feedback.correct { color: #22c55e; }
 .spelling-feedback.wrong { color: #ef4444; }
 .spelling-feedback.neutral { color: #f59e0b; }

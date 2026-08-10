@@ -320,53 +320,113 @@
     const q = quizQuestions[currentQuizIndex];
     if (!q) { showQuizResult(); return; }
 
-    const hint = document.getElementById('quiz-hint');
-    hint.classList.add('hidden');
-    hint.textContent = '';
+    document.getElementById('quiz-hint').classList.add('hidden');
+
+    const len = q.word.length;
+    const slots = Array.from({ length: len }, (_, i) =>
+      `<div class="letter-slot" data-index="${i}" tabindex="0"></div>`
+    ).join('');
 
     container.innerHTML = `
       <div class="question-card">
-        <p class="q-stem">Type the missing word:</p>
+        <p class="q-stem">Spell the word:</p>
         <p class="q-definition">${escapeHtml(q.definition)}</p>
         <p class="q-example">"${escapeHtml(q.example).replace(q.word, '___')}"</p>
-        <div class="spelling-input-row">
-          <input type="text" id="spelling-answer" class="spelling-input" placeholder="Type the word..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+        <div class="letter-slots" id="letter-slots">${slots}</div>
+        <div class="quiz-actions">
           <button class="btn btn-primary" onclick="checkSpelling()">Check</button>
+          <button class="hint-btn" onclick="showSpellingHint()">💡 Show hint</button>
         </div>
-        <button class="hint-btn" onclick="showSpellingHint()">💡 Show hint</button>
         <p id="spelling-feedback" class="spelling-feedback"></p>
       </div>`;
 
-    const input = document.getElementById('spelling-answer');
-    input.focus();
-    input.addEventListener('keydown', e => {
-      if (e.key === 'Enter') checkSpelling();
-    });
-
+    setupLetterInput(q.word);
     document.getElementById('quiz-score').textContent = `${currentQuizIndex + 1} / ${quizQuestions.length}`;
   }
 
+  function setupLetterInput(targetWord) {
+    const slots = document.querySelectorAll('.letter-slot');
+    let currentIndex = 0;
+
+    function focusSlot(i) {
+      if (i >= 0 && i < slots.length) slots[i].focus();
+    }
+
+    function setSlotValue(i, char) {
+      slots[i].textContent = char;
+      slots[i].dataset.value = char;
+    }
+
+    slots.forEach((slot, i) => {
+      slot.addEventListener('keydown', e => {
+        e.preventDefault();
+
+        if (e.key === 'Backspace') {
+          if (slot.textContent) {
+            setSlotValue(i, '');
+          } else if (i > 0) {
+            setSlotValue(i - 1, '');
+            focusSlot(i - 1);
+          }
+          return;
+        }
+
+        if (e.key === 'ArrowLeft') { focusSlot(i - 1); return; }
+        if (e.key === 'ArrowRight') { focusSlot(i + 1); return; }
+        if (e.key === 'Enter') { checkSpelling(); return; }
+
+        if (e.key.length === 1 && /[a-zA-Z]/.test(e.key)) {
+          setSlotValue(i, e.key.toLowerCase());
+          focusSlot(i + 1);
+        }
+      });
+
+      slot.addEventListener('click', () => {
+        slots.forEach((s, idx) => {
+          if (!s.textContent) { focusSlot(idx); return false; }
+        });
+      });
+    });
+
+    focusSlot(0);
+  }
+
+  function getSpelledWord() {
+    const slots = document.querySelectorAll('.letter-slot');
+    return Array.from(slots).map(s => s.dataset.value || '').join('');
+  }
+
   function checkSpelling() {
-    const input = document.getElementById('spelling-answer');
-    const feedback = document.getElementById('spelling-feedback');
     const q = quizQuestions[currentQuizIndex];
-    const answer = (input?.value || '').trim().toLowerCase();
+    const answer = getSpelledWord();
+    const feedback = document.getElementById('spelling-feedback');
     const correct = answer === q.word.toLowerCase();
 
-    if (!answer) {
-      feedback.textContent = 'Please type an answer.';
+    if (answer.length < q.word.length) {
+      feedback.textContent = 'Fill in all letters first.';
       feedback.className = 'spelling-feedback neutral';
       return;
     }
 
-    input.disabled = true;
+    document.querySelectorAll('.letter-slot').forEach(s => s.blur());
 
     if (correct) {
-      feedback.innerHTML = `✅ Correct! <strong>${escapeHtml(q.word)}</strong>`;
+      feedback.innerHTML = `✅ Correct!`;
       feedback.className = 'spelling-feedback correct';
+      document.querySelectorAll('.letter-slot').forEach(s => s.classList.add('correct'));
     } else {
-      feedback.innerHTML = `❌ Wrong. The answer was <strong>${escapeHtml(q.word)}</strong>`;
+      feedback.innerHTML = `❌ The answer was <strong>${escapeHtml(q.word)}</strong>`;
       feedback.className = 'spelling-feedback wrong';
+      // Show the correct letters
+      const slots = document.querySelectorAll('.letter-slot');
+      q.word.split('').forEach((char, i) => {
+        if (slots[i].dataset.value !== char) {
+          slots[i].textContent = char;
+          slots[i].classList.add('wrong');
+        } else {
+          slots[i].classList.add('correct');
+        }
+      });
     }
 
     const idx = words.findIndex(w => w.word === q.word);
@@ -376,30 +436,35 @@
       saveWords(words);
     }
 
-    // Auto-advance after showing result
     setTimeout(() => {
       currentQuizIndex++;
       if (currentQuizIndex < quizQuestions.length) renderQuestion();
       else showQuizResult();
-    }, 1200);
+    }, correct ? 1000 : 1800);
   }
 
   function showSpellingHint() {
     const q = quizQuestions[currentQuizIndex];
     const hint = document.getElementById('quiz-hint');
     const w = q.word;
-    const len = w.length;
+    const slots = document.querySelectorAll('.letter-slot');
+    if (!slots.length) return;
 
-    let display;
-    if (len <= 3) {
-      // 2-3 letters: show first letter only
-      display = w[0] + '_'.repeat(len - 1);
+    // Fill first and last (or just first for short words)
+    if (w.length <= 3) {
+      slots[0].textContent = w[0];
+      slots[0].dataset.value = w[0];
+      slots[0].classList.add('hinted');
     } else {
-      // 4+ letters: show first and last letter
-      display = w[0] + '_'.repeat(len - 2) + w[len - 1];
+      slots[0].textContent = w[0];
+      slots[0].dataset.value = w[0];
+      slots[0].classList.add('hinted');
+      slots[w.length - 1].textContent = w[w.length - 1];
+      slots[w.length - 1].dataset.value = w[w.length - 1];
+      slots[w.length - 1].classList.add('hinted');
     }
 
-    hint.innerHTML = `<span style="color:#94a3b8">Hint:</span> <strong style="letter-spacing:0.15em">${display}</strong> <span style="color:#64748b">(${len} letters)</span>`;
+    hint.innerHTML = `<span style="color:#64748b">Hint applied (${w.length} letters)</span>`;
     hint.classList.remove('hidden');
   }
 
