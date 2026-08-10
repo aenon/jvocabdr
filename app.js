@@ -320,22 +320,31 @@
     const q = quizQuestions[currentQuizIndex];
     if (!q) { showQuizResult(); return; }
 
-    document.getElementById('quiz-hint').classList.add('hidden');
+    const w = q.word;
+    const len = w.length;
 
-    const len = q.word.length;
-    const slots = Array.from({ length: len }, (_, i) =>
-      `<div class="letter-slot" data-index="${i}" tabindex="0"></div>`
-    ).join('');
+    // Pre-fill hints: first + last for 4+, first only for 2-3
+    const slots = Array.from({ length: len }, (_, i) => {
+      let prefill = '';
+      let cls = '';
+      if (len <= 3 && i === 0) {
+        prefill = w[0];
+        cls = 'hinted';
+      } else if (len >= 4 && (i === 0 || i === len - 1)) {
+        prefill = w[i];
+        cls = 'hinted';
+      }
+      return `<div class="letter-slot ${cls}" data-index="${i}" tabindex="0" data-value="${prefill}">${prefill}</div>`;
+    }).join('');
 
     container.innerHTML = `
       <div class="question-card">
-        <p class="q-stem">Spell the word:</p>
+        <p class="q-stem">Spell the word (${len} letters):</p>
         <p class="q-definition">${escapeHtml(q.definition)}</p>
         <p class="q-example">"${escapeHtml(q.example).replace(q.word, '___')}"</p>
         <div class="letter-slots" id="letter-slots">${slots}</div>
         <div class="quiz-actions">
           <button class="btn btn-primary" onclick="checkSpelling()">Check</button>
-          <button class="hint-btn" onclick="showSpellingHint()">💡 Show hint</button>
         </div>
         <p id="spelling-feedback" class="spelling-feedback"></p>
       </div>`;
@@ -346,10 +355,23 @@
 
   function setupLetterInput(targetWord) {
     const slots = document.querySelectorAll('.letter-slot');
-    let currentIndex = 0;
+
+    function isHinted(i) {
+      return slots[i]?.classList.contains('hinted');
+    }
+
+    function nextEditable(i) {
+      for (let j = i + 1; j < slots.length; j++) if (!isHinted(j)) return j;
+      return -1;
+    }
+
+    function prevEditable(i) {
+      for (let j = i - 1; j >= 0; j--) if (!isHinted(j)) return j;
+      return -1;
+    }
 
     function focusSlot(i) {
-      if (i >= 0 && i < slots.length) slots[i].focus();
+      if (i >= 0 && i < slots.length && !isHinted(i)) slots[i].focus();
     }
 
     function setSlotValue(i, char) {
@@ -358,37 +380,40 @@
     }
 
     slots.forEach((slot, i) => {
+      if (isHinted(i)) {
+        slot.style.cursor = 'default';
+        return;
+      }
+
       slot.addEventListener('keydown', e => {
         e.preventDefault();
 
         if (e.key === 'Backspace') {
           if (slot.textContent) {
             setSlotValue(i, '');
-          } else if (i > 0) {
-            setSlotValue(i - 1, '');
-            focusSlot(i - 1);
+          } else {
+            const prev = prevEditable(i);
+            if (prev >= 0) { setSlotValue(prev, ''); focusSlot(prev); }
           }
           return;
         }
 
-        if (e.key === 'ArrowLeft') { focusSlot(i - 1); return; }
-        if (e.key === 'ArrowRight') { focusSlot(i + 1); return; }
+        if (e.key === 'ArrowLeft') { focusSlot(prevEditable(i)); return; }
+        if (e.key === 'ArrowRight') { focusSlot(nextEditable(i)); return; }
         if (e.key === 'Enter') { checkSpelling(); return; }
 
         if (e.key.length === 1 && /[a-zA-Z]/.test(e.key)) {
           setSlotValue(i, e.key.toLowerCase());
-          focusSlot(i + 1);
+          const next = nextEditable(i);
+          if (next >= 0) focusSlot(next);
         }
-      });
-
-      slot.addEventListener('click', () => {
-        slots.forEach((s, idx) => {
-          if (!s.textContent) { focusSlot(idx); return false; }
-        });
       });
     });
 
-    focusSlot(0);
+    // Focus first editable slot
+    for (let i = 0; i < slots.length; i++) {
+      if (!isHinted(i)) { slots[i].focus(); break; }
+    }
   }
 
   function getSpelledWord() {
@@ -441,31 +466,6 @@
       if (currentQuizIndex < quizQuestions.length) renderQuestion();
       else showQuizResult();
     }, correct ? 1000 : 1800);
-  }
-
-  function showSpellingHint() {
-    const q = quizQuestions[currentQuizIndex];
-    const hint = document.getElementById('quiz-hint');
-    const w = q.word;
-    const slots = document.querySelectorAll('.letter-slot');
-    if (!slots.length) return;
-
-    // Fill first and last (or just first for short words)
-    if (w.length <= 3) {
-      slots[0].textContent = w[0];
-      slots[0].dataset.value = w[0];
-      slots[0].classList.add('hinted');
-    } else {
-      slots[0].textContent = w[0];
-      slots[0].dataset.value = w[0];
-      slots[0].classList.add('hinted');
-      slots[w.length - 1].textContent = w[w.length - 1];
-      slots[w.length - 1].dataset.value = w[w.length - 1];
-      slots[w.length - 1].classList.add('hinted');
-    }
-
-    hint.innerHTML = `<span style="color:#64748b">Hint applied (${w.length} letters)</span>`;
-    hint.classList.remove('hidden');
   }
 
   function showQuizResult() {
