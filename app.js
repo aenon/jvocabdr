@@ -3,11 +3,9 @@
   const STORAGE_KEY = 'xvocabdr_words';
 
   function loadWords() {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-    } catch { return []; }
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+    catch { return []; }
   }
-
   function saveWords(words) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(words));
   }
@@ -15,29 +13,43 @@
   let words = loadWords();
   let quizQuestions = [];
   let currentQuizIndex = 0;
+  let dictionaries = {};
 
-  // ─── Sample Words ─────────────────────────
-  const sampleWords = [
-    { word: 'ephemeral', definition: 'Lasting for a very short time.', example: 'The beauty of the sunset was ephemeral.' },
-    { word: 'serendipity', definition: 'The occurrence of events by chance in a happy or beneficial way.', example: 'Finding that book was pure serendipity.' },
-    { word: 'ubiquitous', definition: 'Present, appearing, or found everywhere.', example: 'Smartphones have become ubiquitous in modern society.' },
-    { word: 'resilient', definition: 'Able to recover quickly from difficulties.', example: 'She proved resilient through the storm.' },
-    { word: 'ambiguous', definition: 'Open to more than one interpretation; unclear.', example: 'The instructions were ambiguous and confusing.' },
-    { word: 'articulate', definition: 'Speaking clearly and in a well-organized manner.', example: 'He gave an articulate explanation of the complex topic.' },
-    { word: 'profound', definition: 'Having great depth of thought or feeling.', example: 'She had a profound understanding of the issue.' },
-    { word: 'meticulous', definition: 'Showing extreme care and attention to detail.', example: 'A meticulous approach helped catch every error.' },
-    { word: 'paradox', definition: 'Something that seems self-contradictory or unlikely.', example: 'It is a paradox that the more we share, the less we have.' },
-    { word: 'labyrinth', definition: 'A complicated and confusing arrangement of paths or passages.', example: 'The maze was a labyrinth with no clear exit.' },
-    { word: 'tranquil', definition: 'Calm and peaceful; free from disturbance.', example: 'The lake was tranquil under the moonlight.' },
-    { word: 'vivid', definition: 'Having strong, clear, and realistic qualities.', example: 'She had a vivid memory of that day.' },
-    { word: 'eloquent', definition: 'Speaking or writing with fluency and elegance.', example: 'She gave an eloquent speech to the crowd.' },
+  // ─── Dictionaries ─────────────────────────
+  const DICT_FILES = [
+    'beginner.json',
+    'intermediate.json',
+    'advanced.json',
+    'advanced-tech.json',
+    'advanced-medical.json',
+    'advanced-legal.json',
+    'advanced-business.json',
+    'advanced-science.json'
   ];
+
+  async function loadDictionaries() {
+    const promises = DICT_FILES.map(async file => {
+      try {
+        const res = await fetch(`dictionaries/${file}`);
+        if (!res.ok) return null;
+        const data = await res.json();
+        return { key: file.replace('.json', ''), data };
+      } catch { return null; }
+    });
+
+    const results = await Promise.all(promises);
+    results.forEach(r => { if (r) dictionaries[r.key] = r.data; });
+
+    renderDictionarySelector();
+    renderDictionarySampleWords();
+  }
 
   // ─── UI Helpers ───────────────────────────
   function toast(msg) {
     const el = document.getElementById('toast');
     el.textContent = msg;
-    el.style.animation = 'none'; void el.offsetWidth; el.style.animation = '';
+    el.style.animation = 'none'; void el.offsetWidth;
+    el.style.animation = '';
   }
 
   function setView(viewName) {
@@ -46,9 +58,8 @@
     document.querySelectorAll('.nav button').forEach(b => {
       b.classList.toggle('active', b.dataset.view === viewName);
     });
-
     if (viewName === 'dashboard') renderDashboard();
-    if (viewName === 'add') renderSampleWords();
+    if (viewName === 'add') renderDictionarySampleWords();
   }
 
   // ─── Dashboard ────────────────────────────
@@ -64,6 +75,7 @@
     const ul = document.getElementById('progress-list');
     if (total === 0) {
       ul.innerHTML = '<li style="color:#64748b;">No words added yet.</li>';
+      document.getElementById('recent-activity').innerHTML = '<li>No activity yet.</li>';
       return;
     }
 
@@ -71,146 +83,263 @@
       .sort((a, b) => (b.seenTimes || 0) - (a.seenTimes || 0))
       .map(w => {
         const pct = Math.min((w.seenTimes || 0) * 33, 100);
+        const tag = w.source ? `<span style="font-size:0.75rem;color:#60a5fa;margin-left:auto">${w.source}</span>` : '';
         return `
           <li>
             <span class="word-title">${w.word}</span>
             <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
             <span class="seen">${w.seenTimes || 0} / 3</span>
+            ${tag}
           </li>`;
-      })
-      .join('');
+      }).join('');
 
     const recent = words.slice(-5).reverse();
-    const actUl = document.getElementById('recent-activity');
-    if (total === 0) {
-      actUl.innerHTML = '<li>No words added yet.</li>';
-    } else {
-      actUl.innerHTML = recent.map(w => `<li>✅ "${w.word}" — ${w.seenTimes || 0} review(s)</li>`).join('');
-    }
+    document.getElementById('recent-activity').innerHTML =
+      recent.map(w => `<li>✅ "${w.word}" — ${w.seenTimes || 0} review(s)</li>`).join('');
   }
 
-  // ─── Add Word Form ────────────────────────
+  // ─── Add Word ─────────────────────────────
   document.getElementById('add-word-form').addEventListener('submit', e => {
     e.preventDefault();
-
     const word = document.getElementById('word-input').value.trim().toLowerCase();
     const definition = document.getElementById('definition-input').value.trim();
     const example = document.getElementById('example-input').value.trim();
-
     if (!word || !definition || !example) return;
-
-    const exists = words.some(w => w.word === word);
-    if (exists) { toast('Word already exists!'); return; }
-
-    const newWord = {
-      id: Date.now(),
-      word, definition, example, difficulty: 'medium',
-      seenTimes: 0, addedAt: Date.now()
-    };
-
-    words.push(newWord);
-    saveWords(words);
-    toast(`Added "${word}"!`);
-
-    document.getElementById('word-input').value = '';
-    document.getElementById('definition-input').value = '';
-    document.getElementById('example-input').value = '';
-
-    renderSampleWords();
-    renderDashboard();
+    addWord(word, definition, example, 'custom');
+    document.getElementById('add-word-form').reset();
   });
 
-  function renderSampleWords() {
-    const container = document.getElementById('sample-words');
-    const existing = new Set(words.map(w => w.word));
+  function addWord(word, definition, example, source = 'custom') {
+    const exists = words.some(w => w.word === word);
+    if (exists) { toast(`"${word}" already exists!`); return false; }
 
-    container.innerHTML = sampleWords
-      .filter(s => !existing.has(s.word))
-      .map(s => `
-        <button onclick="addSample('${escape(s.word)}', '${escape(s.definition)}', '${escape(s.example)}')">
-          ${s.word}
-        </button>`
-      ).join('');
+    words.push({
+      id: Date.now() + Math.random(),
+      word, definition, example,
+      source, seenTimes: 0, addedAt: Date.now()
+    });
+    saveWords(words);
+    toast(`Added "${word}"`);
+    renderDashboard();
+    renderDictionarySampleWords();
+    return true;
   }
 
-  function addSample(word, definition, example) {
-    const exists = words.some(w => w.word === word);
-    if (exists) { toast('Word already exists!'); return; }
+  function addAllFromDict(dictKey) {
+    const dict = dictionaries[dictKey];
+    if (!dict) { toast('Dictionary not loaded'); return; }
 
-    const newWord = {
-      id: Date.now(), word, definition, example, difficulty: 'medium',
-      seenTimes: 0, addedAt: Date.now()
-    };
+    let added = 0;
+    const existing = new Set(words.map(w => w.word));
 
-    words.push(newWord);
-    saveWords(words);
-    toast(`Added "${word}"!`);
+    dict.words.forEach(entry => {
+      if (existing.has(entry.word)) return;
+      words.push({
+        id: Date.now() + Math.random(),
+        word: entry.word,
+        definition: entry.definition,
+        example: entry.example,
+        source: dict.name || dictKey,
+        seenTimes: 0, addedAt: Date.now()
+      });
+      added++;
+    });
 
-    document.getElementById('add-word-form').reset();
-    renderSampleWords();
-    renderDashboard();
+    if (added > 0) {
+      saveWords(words);
+      toast(`Added ${added} words from ${dict.name || dictKey}`);
+      renderDashboard();
+      renderDictionarySampleWords();
+    } else {
+      toast('All words already added');
+    }
+  }
 
-    setView('dashboard');
+  function renderDictionarySampleWords() {
+    const container = document.getElementById('dictionary-samples');
+    if (!container) return;
+
+    const existing = new Set(words.map(w => w.word));
+    const html = Object.entries(dictionaries).map(([key, dict]) => {
+      const remaining = dict.words.filter(w => !existing.has(w.word)).length;
+      const total = dict.words.length;
+      return `
+        <div class="dict-card">
+          <div class="dict-header">
+            <strong>${dict.name || key}</strong>
+            <span class="dict-badge">${total - remaining}/${total}</span>
+          </div>
+          <p class="dict-desc">${dict.description || ''}</p>
+          <div class="dict-actions">
+            <button onclick="addAllFromDict('${key}')">Add All</button>
+            <button onclick="addRandomFromDict('${key}', 5)">Add 5 Random</button>
+          </div>
+          <div class="dict-words">
+            ${dict.words.slice(0, 3).map(w => `<span>${w.word}</span>`).join('')}
+            ${dict.words.length > 3 ? `<span>+${dict.words.length - 3} more</span>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+
+    container.innerHTML = html || '<p style="color:#64748b">No dictionaries found. Place JSON files in <code>dictionaries/</code> folder.</p>';
+  }
+
+  function addRandomFromDict(dictKey, count) {
+    const dict = dictionaries[dictKey];
+    if (!dict) { toast('Dictionary not loaded'); return; }
+
+    const existing = new Set(words.map(w => w.word));
+    const available = dict.words.filter(w => !existing.has(w.word));
+    const shuffled = shuffle([...available]).slice(0, count);
+
+    let added = 0;
+    shuffled.forEach(entry => {
+      words.push({
+        id: Date.now() + Math.random(),
+        word: entry.word,
+        definition: entry.definition,
+        example: entry.example,
+        source: dict.name || dictKey,
+        seenTimes: 0, addedAt: Date.now()
+      });
+      added++;
+    });
+
+    if (added > 0) {
+      saveWords(words);
+      toast(`Added ${added} random words from ${dict.name || dictKey}`);
+      renderDashboard();
+      renderDictionarySampleWords();
+    } else {
+      toast('No new words available');
+    }
   }
 
   // ─── Quiz ─────────────────────────────────
-  function startQuiz() {
-    const reviewWords = words.filter(w => w.seenTimes < 3);
+  function renderDictionarySelector() {
+    const container = document.getElementById('dict-selector');
+    if (!container) return;
 
-    if (reviewWords.length === 0) {
-      toast('No words to quiz! Add some first.');
+    const keys = Object.keys(dictionaries);
+    if (keys.length === 0) {
+      container.innerHTML = '<p style="color:#64748b">No dictionaries loaded.</p>';
       return;
     }
 
-    const shuffled = shuffleWords(reviewWords);
-    quizQuestions = shuffled.slice(0, Math.min(10, shuffled.length));
-    currentQuizIndex = 0;
+    const existing = new Set(words.map(w => w.word));
 
+    container.innerHTML = `
+      <label>Choose words from:</label>
+      <select id="quiz-dict-select">
+        <option value="__all__">All my words</option>
+        ${keys.map(k => {
+          const dict = dictionaries[k];
+          const remaining = dict.words.filter(w => !existing.has(w.word)).length;
+          return `<option value="${k}">${dict.name || k} (${dict.words.length} words)</option>`;
+        }).join('')}
+      </select>
+      <div class="quiz-mode">
+        <label><input type="radio" name="quiz-mode" value="random" checked> Random subset</label>
+        <label><input type="radio" name="quiz-mode" value="sequential"> Sequential</label>
+      </div>
+      <div class="quiz-size">
+        <label>Words per quiz:</label>
+        <input type="number" id="quiz-size" value="10" min="1" max="50">
+      </div>
+    `;
+  }
+
+  function startQuiz() {
+    const select = document.getElementById('quiz-dict-select');
+    const dictKey = select ? select.value : '__all__';
+    const mode = document.querySelector('input[name="quiz-mode"]:checked')?.value || 'random';
+    const size = parseInt(document.getElementById('quiz-size')?.value || '10', 10);
+
+    let sourceWords = [];
+
+    if (dictKey === '__all__') {
+      sourceWords = words.filter(w => w.seenTimes < 3);
+      if (sourceWords.length === 0) {
+        toast('No words in review. All words mastered!');
+        return;
+      }
+    } else {
+      const dict = dictionaries[dictKey];
+      if (!dict) { toast('Dictionary not found'); return; }
+
+      // Add missing dictionary words to user's list first
+      const existing = new Set(words.map(w => w.word));
+      dict.words.forEach(entry => {
+        if (!existing.has(entry.word)) {
+          words.push({
+            id: Date.now() + Math.random(),
+            word: entry.word,
+            definition: entry.definition,
+            example: entry.example,
+            source: dict.name || dictKey,
+            seenTimes: 0, addedAt: Date.now()
+          });
+        }
+      });
+      saveWords(words);
+
+      sourceWords = words.filter(w => {
+        const fromDict = w.source === (dict.name || dictKey);
+        return fromDict && w.seenTimes < 3;
+      });
+
+      if (sourceWords.length === 0) {
+        toast(`All ${dict.name || dictKey} words mastered!`);
+        return;
+      }
+    }
+
+    if (mode === 'random') {
+      quizQuestions = shuffle([...sourceWords]).slice(0, Math.min(size, sourceWords.length));
+    } else {
+      quizQuestions = sourceWords.slice(0, Math.min(size, sourceWords.length));
+    }
+
+    currentQuizIndex = 0;
     document.getElementById('quiz-container').innerHTML = '';
     document.getElementById('quiz-result').classList.add('hidden');
-
     renderQuestion();
   }
 
-  function shuffleWords(arr) {
-    for (let i = arr.length - 1; i > 0; i--) {
+  function shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
+      [a[i], a[j]] = [a[j], a[i]];
     }
-    return arr;
+    return a;
   }
 
   function renderQuestion() {
     const container = document.getElementById('quiz-container');
     const q = quizQuestions[currentQuizIndex];
-
     if (!q) { showQuizResult(); return; }
 
-    const pool = [...words, ...sampleWords.map(s => ({ word: s.word }))].map(w => w.word)
-      .filter(w => w !== q.word).sort(() => Math.random() - 0.5);
-
-    const options = [q.word, ...pool.slice(0, 3)].sort(() => Math.random() - 0.5);
-    const isCorrect = options.includes(q.word);
+    const allWords = [...words.map(w => w.word), ...Object.values(dictionaries).flatMap(d => d.words.map(w => w.word))];
+    const pool = shuffle(allWords.filter(w => w !== q.word)).slice(0, 3);
+    const options = shuffle([q.word, ...pool]);
 
     container.innerHTML = `
       <div class="question-card">
         <p class="q-stem">Fill in the blank:</p>
-        <p style="font-size:1.1rem; margin-bottom: 1rem;">
-          "${q.example.replace(q.word, '___')}"
-        </p>
+        <p style="font-size:1.1rem; margin-bottom:1rem;">"${escapeHtml(q.example).replace(q.word, '___')}"</p>
         <div class="q-options">
           ${options.map(opt => `
-            <button class="q-option" onclick="handleQuizAnswer(${currentQuizIndex}, "${opt}")">
-              ${opt}
-            </button>`).join('')}
+            <button class="q-option" onclick="handleQuizAnswer('${escapeJs(opt)}')">${escapeHtml(opt)}</button>
+          `).join('')}
         </div>
       </div>`;
 
     document.getElementById('quiz-score').textContent = `${currentQuizIndex + 1} / ${quizQuestions.length}`;
   }
 
-  function handleQuizAnswer(index, answer) {
-    const q = quizQuestions[index];
+  function handleQuizAnswer(answer) {
+    const q = quizQuestions[currentQuizIndex];
     const options = document.querySelectorAll('.q-option');
 
     options.forEach(opt => {
@@ -218,64 +347,51 @@
       else if (opt.textContent === answer && answer !== q.word) opt.classList.add('wrong');
     });
 
-    const wordIdx = words.findIndex(w => w.word === q.word);
-    if (wordIdx >= 0) {
-      words[wordIdx].seenTimes++;
+    const idx = words.findIndex(w => w.word === q.word);
+    if (idx >= 0) {
+      words[idx].seenTimes++;
+      if (answer === q.word) words[idx].seenTimes++;
       saveWords(words);
-
-      if (answer === q.word) {
-        words[wordIdx].seenTimes++;
-        saveWords(words);
-      }
     }
 
     setTimeout(() => {
       currentQuizIndex++;
-      if (currentQuizIndex < quizQuestions.length) {
-        renderQuestion();
-      } else {
-        showQuizResult();
-      }
-    }, 800);
+      if (currentQuizIndex < quizQuestions.length) renderQuestion();
+      else showQuizResult();
+    }, 700);
   }
 
   function showQuizResult() {
-    const container = document.getElementById('quiz-container');
-    container.innerHTML = '';
-
+    document.getElementById('quiz-container').innerHTML = '';
     const resultEl = document.getElementById('quiz-result');
     resultEl.classList.remove('hidden');
 
-    const reviewed = quizQuestions.filter(q => {
+    const fromQuiz = quizQuestions.filter(q => {
       const w = words.find(w2 => w2.word === q.word);
       return w && w.seenTimes > 0;
     }).length;
 
-    document.getElementById('quiz-result-score').textContent = `You reviewed ${reviewed} words! Keep going.`;
+    document.getElementById('quiz-result-score').textContent =
+      `Session complete! You reviewed ${fromQuiz} words. Keep building your vocabulary!`;
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function escapeJs(str) {
+    return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
   }
 
   // ─── Event Listeners ──────────────────────
-  document.getElementById('start-quiz').addEventListener('click', startQuiz);
-
-  document.getElementById('retake-quiz').addEventListener('click', () => {
-    startQuiz();
-  });
-
-  document.getElementById('back-to-review').addEventListener('click', () => {
-    setView('dashboard');
-  });
+  document.getElementById('start-quiz')?.addEventListener('click', startQuiz);
+  document.getElementById('retake-quiz')?.addEventListener('click', startQuiz);
+  document.getElementById('back-to-review')?.addEventListener('click', () => setView('dashboard'));
 
   document.querySelectorAll('.nav button').forEach(btn => {
     btn.addEventListener('click', () => setView(btn.dataset.view));
   });
 
-  // ─── Escape helper for sample words ──────
-  function escape(str) {
-    return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-  }
-
   // ─── Init ─────────────────────────────────
+  loadDictionaries();
   renderDashboard();
-  renderSampleWords();
-
 })();
