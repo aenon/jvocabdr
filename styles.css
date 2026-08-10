@@ -148,24 +148,42 @@ header h1 { font-size: 1.5rem; color: #a78bfa; }
 
 .score-display { font-size: 1.2rem; color: #a78bfa; min-width: 40px; text-align: right; }
 
-/* ── Quiz Question ──────────────────────── */
+/* ── Quiz Question (Spelling) ─────────────── */
 .question-card {
   background: #1e293b; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem;
 }
 
-.question-card .q-stem { font-size: 1.25rem; margin-bottom: 0.75rem; }
+.question-card .q-stem { font-size: 1.1rem; color: #94a3b8; margin-bottom: 0.5rem; }
+.question-card .q-definition { font-size: 1.2rem; font-weight: 500; margin-bottom: 0.75rem; line-height: 1.4; }
+.question-card .q-example { font-size: 1.05rem; color: #cbd5e1; font-style: italic; margin-bottom: 1.25rem; }
 
-.question-card .q-options { display: flex; flex-direction: column; gap: 0.5rem }
+.spelling-input-row { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
 
-.question-card .q-option {
-  padding: 0.75rem; border-radius: 8px; background: #334155;
-  cursor: pointer; transition: all .2s; font-size: 1rem;
+.spelling-input {
+  flex: 1; background: #0f172a; color: #e2e8f0; border: 2px solid #334155;
+  padding: 0.75rem 1rem; border-radius: 8px; font-size: 1.1rem; outline: none;
 }
+.spelling-input:focus { border-color: #60a5fa; }
+.spelling-input:disabled { opacity: 0.6; }
 
-.question-card .q-option:hover { background: #475569; }
-.question-card .q-option.selected { background: #3b82f6; color: #fff; }
-.question-card .q-option.correct { background: #22c55e; color: #fff; }
-.question-card .q-option.wrong { background: #ef4444; color: #fff; }
+.hint-btn {
+  background: transparent; color: #94a3b8; border: none; cursor: pointer;
+  font-size: 0.85rem; padding: 0.3rem 0; display: inline-flex; align-items: center; gap: 0.3rem;
+}
+.hint-btn:hover { color: #e2e8f0; }
+
+.spelling-feedback { margin-top: 0.75rem; font-size: 1rem; min-height: 1.5rem; }
+.spelling-feedback.correct { color: #22c55e; }
+.spelling-feedback.wrong { color: #ef4444; }
+.spelling-feedback.neutral { color: #f59e0b; }
+
+/* ── Quiz Hint Banner ───────────────────── */
+.quiz-hint {
+  background: #1e293b; border: 1px solid #475569; border-radius: 8px;
+  padding: 0.75rem 1rem; margin-bottom: 1rem; font-size: 1rem; color: #e2e8f0;
+  text-align: center; letter-spacing: 0.15em;
+}
+.quiz-hint.hidden { display: none; }
 
 /* ── Quiz Result ─────────────────────────── */
 .quiz-result { margin-top: 1.5rem; text-align: center }

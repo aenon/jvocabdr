@@ -320,45 +320,77 @@
     const q = quizQuestions[currentQuizIndex];
     if (!q) { showQuizResult(); return; }
 
-    const allWords = [...words.map(w => w.word), ...Object.values(dictionaries).flatMap(d => d.words.map(w => w.word))];
-    const pool = shuffle(allWords.filter(w => w !== q.word)).slice(0, 3);
-    const options = shuffle([q.word, ...pool]);
+    const hint = document.getElementById('quiz-hint');
+    hint.classList.add('hidden');
+    hint.textContent = '';
 
     container.innerHTML = `
       <div class="question-card">
-        <p class="q-stem">Fill in the blank:</p>
-        <p style="font-size:1.1rem; margin-bottom:1rem;">"${escapeHtml(q.example).replace(q.word, '___')}"</p>
-        <div class="q-options">
-          ${options.map(opt => `
-            <button class="q-option" onclick="handleQuizAnswer('${escapeJs(opt)}')">${escapeHtml(opt)}</button>
-          `).join('')}
+        <p class="q-stem">Type the missing word:</p>
+        <p class="q-definition">${escapeHtml(q.definition)}</p>
+        <p class="q-example">"${escapeHtml(q.example).replace(q.word, '___')}"</p>
+        <div class="spelling-input-row">
+          <input type="text" id="spelling-answer" class="spelling-input" placeholder="Type the word..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+          <button class="btn btn-primary" onclick="checkSpelling()">Check</button>
         </div>
+        <button class="hint-btn" onclick="showSpellingHint()">💡 Show hint</button>
+        <p id="spelling-feedback" class="spelling-feedback"></p>
       </div>`;
+
+    const input = document.getElementById('spelling-answer');
+    input.focus();
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') checkSpelling();
+    });
 
     document.getElementById('quiz-score').textContent = `${currentQuizIndex + 1} / ${quizQuestions.length}`;
   }
 
-  function handleQuizAnswer(answer) {
+  function checkSpelling() {
+    const input = document.getElementById('spelling-answer');
+    const feedback = document.getElementById('spelling-feedback');
     const q = quizQuestions[currentQuizIndex];
-    const options = document.querySelectorAll('.q-option');
+    const answer = (input?.value || '').trim().toLowerCase();
+    const correct = answer === q.word.toLowerCase();
 
-    options.forEach(opt => {
-      if (opt.textContent === q.word) opt.classList.add('correct');
-      else if (opt.textContent === answer && answer !== q.word) opt.classList.add('wrong');
-    });
+    if (!answer) {
+      feedback.textContent = 'Please type an answer.';
+      feedback.className = 'spelling-feedback neutral';
+      return;
+    }
+
+    input.disabled = true;
+
+    if (correct) {
+      feedback.innerHTML = `✅ Correct! <strong>${escapeHtml(q.word)}</strong>`;
+      feedback.className = 'spelling-feedback correct';
+    } else {
+      feedback.innerHTML = `❌ Wrong. The answer was <strong>${escapeHtml(q.word)}</strong>`;
+      feedback.className = 'spelling-feedback wrong';
+    }
 
     const idx = words.findIndex(w => w.word === q.word);
     if (idx >= 0) {
       words[idx].seenTimes++;
-      if (answer === q.word) words[idx].seenTimes++;
+      if (correct) words[idx].seenTimes++;
       saveWords(words);
     }
 
+    // Auto-advance after showing result
     setTimeout(() => {
       currentQuizIndex++;
       if (currentQuizIndex < quizQuestions.length) renderQuestion();
       else showQuizResult();
-    }, 700);
+    }, 1200);
+  }
+
+  function showSpellingHint() {
+    const q = quizQuestions[currentQuizIndex];
+    const hint = document.getElementById('quiz-hint');
+    const first = q.word[0];
+    const blanks = '_'.repeat(q.word.length - 1);
+    hint.textContent = `Hint: ${first}${blanks} (${q.word.length} letters)`;
+    hint.classList.remove('hidden');
   }
 
   function showQuizResult() {
