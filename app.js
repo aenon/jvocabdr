@@ -1,6 +1,9 @@
 (() => {
+  'use strict';
+
   // ─── State & Storage ──────────────────────
   const STORAGE_KEY = 'xvocabdr_words';
+  const MASTERED_AT = 3; // correct spellings needed to master a word
 
   function loadWords() {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
@@ -13,6 +16,8 @@
   let words = loadWords();
   let quizQuestions = [];
   let currentQuizIndex = 0;
+  let quizCorrect = 0;
+  let questionAnswered = false;
   let dictionaries = {};
 
   // ─── Dictionaries ─────────────────────────
@@ -60,13 +65,14 @@
     });
     if (viewName === 'dashboard') renderDashboard();
     if (viewName === 'add') renderDictionarySampleWords();
+    if (viewName === 'quiz') renderDictionarySelector();
   }
 
   // ─── Dashboard ────────────────────────────
   function renderDashboard() {
     const total = words.length;
-    const inReview = words.filter(w => w.seenTimes < 3).length;
-    const mastered = total - inReview;
+    const mastered = words.filter(w => (w.seenTimes || 0) >= MASTERED_AT).length;
+    const inReview = total - mastered;
 
     document.getElementById('total-words').textContent = total;
     document.getElementById('review-words').textContent = inReview;
@@ -79,23 +85,23 @@
       return;
     }
 
-    ul.innerHTML = words
-      .sort((a, b) => (b.seenTimes || 0) - (a.seenTimes || 0))
+    ul.innerHTML = [...words]
+      .sort((a, b) => (a.seenTimes || 0) - (b.seenTimes || 0))
       .map(w => {
-        const pct = Math.min((w.seenTimes || 0) * 33, 100);
-        const tag = w.source ? `<span style="font-size:0.75rem;color:#60a5fa;margin-left:auto">${w.source}</span>` : '';
+        const pct = Math.round(Math.min((w.seenTimes || 0) / MASTERED_AT, 1) * 100);
+        const tag = w.source ? `<span style="font-size:0.75rem;color:#60a5fa;margin-left:auto">${escapeHtml(w.source)}</span>` : '';
         return `
           <li>
-            <span class="word-title">${w.word}</span>
+            <span class="word-title">${escapeHtml(w.word)}</span>
             <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
-            <span class="seen">${w.seenTimes || 0} / 3</span>
+            <span class="seen">${Math.min(w.seenTimes || 0, MASTERED_AT)} / ${MASTERED_AT}</span>
             ${tag}
           </li>`;
       }).join('');
 
-    const recent = words.slice(-5).reverse();
+    const recent = [...words].sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0)).slice(0, 5);
     document.getElementById('recent-activity').innerHTML =
-      recent.map(w => `<li>✅ "${w.word}" — ${w.seenTimes || 0} review(s)</li>`).join('');
+      recent.map(w => `<li>✅ "${escapeHtml(w.word)}" — ${w.seenTimes || 0} correct review(s)</li>`).join('');
   }
 
   // ─── Add Word ─────────────────────────────
@@ -105,8 +111,9 @@
     const definition = document.getElementById('definition-input').value.trim();
     const example = document.getElementById('example-input').value.trim();
     if (!word || !definition || !example) return;
-    addWord(word, definition, example, 'custom');
-    document.getElementById('add-word-form').reset();
+    if (addWord(word, definition, example, 'custom')) {
+      document.getElementById('add-word-form').reset();
+    }
   });
 
   function addWord(word, definition, example, source = 'custom') {
@@ -125,6 +132,17 @@
     return true;
   }
 
+  function pushDictEntry(entry, sourceName) {
+    words.push({
+      id: Date.now() + Math.random(),
+      word: entry.word,
+      definition: entry.definition,
+      example: entry.example,
+      source: sourceName,
+      seenTimes: 0, addedAt: Date.now()
+    });
+  }
+
   function addAllFromDict(dictKey) {
     const dict = dictionaries[dictKey];
     if (!dict) { toast('Dictionary not loaded'); return; }
@@ -134,14 +152,7 @@
 
     dict.words.forEach(entry => {
       if (existing.has(entry.word)) return;
-      words.push({
-        id: Date.now() + Math.random(),
-        word: entry.word,
-        definition: entry.definition,
-        example: entry.example,
-        source: dict.name || dictKey,
-        seenTimes: 0, addedAt: Date.now()
-      });
+      pushDictEntry(entry, dict.name || dictKey);
       added++;
     });
 
@@ -152,6 +163,26 @@
       renderDictionarySampleWords();
     } else {
       toast('All words already added');
+    }
+  }
+
+  function addRandomFromDict(dictKey, count) {
+    const dict = dictionaries[dictKey];
+    if (!dict) { toast('Dictionary not loaded'); return; }
+
+    const existing = new Set(words.map(w => w.word));
+    const available = dict.words.filter(w => !existing.has(w.word));
+    const shuffled = shuffle(available).slice(0, count);
+
+    shuffled.forEach(entry => pushDictEntry(entry, dict.name || dictKey));
+
+    if (shuffled.length > 0) {
+      saveWords(words);
+      toast(`Added ${shuffled.length} random words from ${dict.name || dictKey}`);
+      renderDashboard();
+      renderDictionarySampleWords();
+    } else {
+      toast('No new words available');
     }
   }
 
@@ -166,16 +197,16 @@
       return `
         <div class="dict-card">
           <div class="dict-header">
-            <strong>${dict.name || key}</strong>
+            <strong>${escapeHtml(dict.name || key)}</strong>
             <span class="dict-badge">${total - remaining}/${total}</span>
           </div>
-          <p class="dict-desc">${dict.description || ''}</p>
+          <p class="dict-desc">${escapeHtml(dict.description || '')}</p>
           <div class="dict-actions">
-            <button onclick="addAllFromDict('${key}')">Add All</button>
-            <button onclick="addRandomFromDict('${key}', 5)">Add 5 Random</button>
+            <button data-action="add-all" data-key="${escapeHtml(key)}">Add All</button>
+            <button data-action="add-random" data-key="${escapeHtml(key)}">Add 5 Random</button>
           </div>
           <div class="dict-words">
-            ${dict.words.slice(0, 3).map(w => `<span>${w.word}</span>`).join('')}
+            ${dict.words.slice(0, 3).map(w => `<span>${escapeHtml(w.word)}</span>`).join('')}
             ${dict.words.length > 3 ? `<span>+${dict.words.length - 3} more</span>` : ''}
           </div>
         </div>`;
@@ -184,36 +215,13 @@
     container.innerHTML = html || '<p style="color:#64748b">No dictionaries found. Place JSON files in <code>dictionaries/</code> folder.</p>';
   }
 
-  function addRandomFromDict(dictKey, count) {
-    const dict = dictionaries[dictKey];
-    if (!dict) { toast('Dictionary not loaded'); return; }
-
-    const existing = new Set(words.map(w => w.word));
-    const available = dict.words.filter(w => !existing.has(w.word));
-    const shuffled = shuffle([...available]).slice(0, count);
-
-    let added = 0;
-    shuffled.forEach(entry => {
-      words.push({
-        id: Date.now() + Math.random(),
-        word: entry.word,
-        definition: entry.definition,
-        example: entry.example,
-        source: dict.name || dictKey,
-        seenTimes: 0, addedAt: Date.now()
-      });
-      added++;
-    });
-
-    if (added > 0) {
-      saveWords(words);
-      toast(`Added ${added} random words from ${dict.name || dictKey}`);
-      renderDashboard();
-      renderDictionarySampleWords();
-    } else {
-      toast('No new words available');
-    }
-  }
+  // Event delegation for dictionary card buttons (inline onclick won't work inside this IIFE)
+  document.getElementById('dictionary-samples').addEventListener('click', e => {
+    const btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+    if (btn.dataset.action === 'add-all') addAllFromDict(btn.dataset.key);
+    if (btn.dataset.action === 'add-random') addRandomFromDict(btn.dataset.key, 5);
+  });
 
   // ─── Quiz ─────────────────────────────────
   function renderDictionarySelector() {
@@ -226,16 +234,13 @@
       return;
     }
 
-    const existing = new Set(words.map(w => w.word));
-
     container.innerHTML = `
       <label>Choose words from:</label>
       <select id="quiz-dict-select">
         <option value="__all__">All my words</option>
         ${keys.map(k => {
           const dict = dictionaries[k];
-          const remaining = dict.words.filter(w => !existing.has(w.word)).length;
-          return `<option value="${k}">${dict.name || k} (${dict.words.length} words)</option>`;
+          return `<option value="${escapeHtml(k)}">${escapeHtml(dict.name || k)} (${dict.words.length} words)</option>`;
         }).join('')}
       </select>
       <div class="quiz-mode">
@@ -253,14 +258,14 @@
     const select = document.getElementById('quiz-dict-select');
     const dictKey = select ? select.value : '__all__';
     const mode = document.querySelector('input[name="quiz-mode"]:checked')?.value || 'random';
-    const size = parseInt(document.getElementById('quiz-size')?.value || '10', 10);
+    const size = Math.max(1, parseInt(document.getElementById('quiz-size')?.value || '10', 10) || 10);
 
     let sourceWords = [];
 
     if (dictKey === '__all__') {
-      sourceWords = words.filter(w => w.seenTimes < 3);
+      sourceWords = words.filter(w => (w.seenTimes || 0) < MASTERED_AT);
       if (sourceWords.length === 0) {
-        toast('No words in review. All words mastered!');
+        toast(words.length === 0 ? 'Add some words first!' : 'No words in review. All words mastered!');
         return;
       }
     } else {
@@ -268,40 +273,28 @@
       if (!dict) { toast('Dictionary not found'); return; }
 
       // Add missing dictionary words to user's list first
+      const sourceName = dict.name || dictKey;
       const existing = new Set(words.map(w => w.word));
       dict.words.forEach(entry => {
-        if (!existing.has(entry.word)) {
-          words.push({
-            id: Date.now() + Math.random(),
-            word: entry.word,
-            definition: entry.definition,
-            example: entry.example,
-            source: dict.name || dictKey,
-            seenTimes: 0, addedAt: Date.now()
-          });
-        }
+        if (!existing.has(entry.word)) pushDictEntry(entry, sourceName);
       });
       saveWords(words);
 
-      sourceWords = words.filter(w => {
-        const fromDict = w.source === (dict.name || dictKey);
-        return fromDict && w.seenTimes < 3;
-      });
+      sourceWords = words.filter(w =>
+        w.source === sourceName && (w.seenTimes || 0) < MASTERED_AT
+      );
 
       if (sourceWords.length === 0) {
-        toast(`All ${dict.name || dictKey} words mastered!`);
+        toast(`All ${sourceName} words mastered!`);
         return;
       }
     }
 
-    if (mode === 'random') {
-      quizQuestions = shuffle([...sourceWords]).slice(0, Math.min(size, sourceWords.length));
-    } else {
-      quizQuestions = sourceWords.slice(0, Math.min(size, sourceWords.length));
-    }
+    const pool = mode === 'random' ? shuffle(sourceWords) : [...sourceWords];
+    quizQuestions = pool.slice(0, Math.min(size, pool.length));
 
     currentQuizIndex = 0;
-    document.getElementById('quiz-container').innerHTML = '';
+    quizCorrect = 0;
     document.getElementById('quiz-result').classList.add('hidden');
     renderQuestion();
   }
@@ -315,40 +308,48 @@
     return a;
   }
 
+  function blankOutWord(example, word) {
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return example.replace(new RegExp(`\\b${escaped}\\b`, 'gi'), '___');
+  }
+
   function renderQuestion() {
     const container = document.getElementById('quiz-container');
     const q = quizQuestions[currentQuizIndex];
     if (!q) { showQuizResult(); return; }
 
+    questionAnswered = false;
+
     const w = q.word;
     const len = w.length;
 
-    // Pre-fill hints: first + last for 4+, first only for 2-3
+    // Pre-fill hints: first + last for 4+ letters, first only for 2-3
     const slots = Array.from({ length: len }, (_, i) => {
       let prefill = '';
       let cls = '';
       if (len <= 3 && i === 0) {
-        prefill = w[0];
+        prefill = w[i];
         cls = 'hinted';
       } else if (len >= 4 && (i === 0 || i === len - 1)) {
         prefill = w[i];
         cls = 'hinted';
       }
-      return `<div class="letter-slot ${cls}" data-index="${i}" tabindex="0" data-value="${prefill}">${prefill}</div>`;
+      return `<div class="letter-slot ${cls}" data-index="${i}" tabindex="0" data-value="${escapeHtml(prefill)}">${escapeHtml(prefill)}</div>`;
     }).join('');
 
     container.innerHTML = `
       <div class="question-card">
         <p class="q-stem">Spell the word (${len} letters):</p>
         <p class="q-definition">${escapeHtml(q.definition)}</p>
-        <p class="q-example">"${escapeHtml(q.example).replace(q.word, '___')}"</p>
+        <p class="q-example">"${escapeHtml(blankOutWord(q.example, q.word))}"</p>
         <div class="letter-slots" id="letter-slots">${slots}</div>
         <div class="quiz-actions">
-          <button class="btn btn-primary" onclick="checkSpelling()">Check</button>
+          <button class="btn btn-primary" id="check-btn">Check</button>
         </div>
         <p id="spelling-feedback" class="spelling-feedback"></p>
       </div>`;
 
+    document.getElementById('check-btn').addEventListener('click', checkSpelling);
     setupLetterInput(q.word);
     document.getElementById('quiz-score').textContent = `${currentQuizIndex + 1} / ${quizQuestions.length}`;
   }
@@ -386,10 +387,11 @@
       }
 
       slot.addEventListener('keydown', e => {
+        if (questionAnswered) { e.preventDefault(); return; }
         e.preventDefault();
 
         if (e.key === 'Backspace') {
-          if (slot.textContent) {
+          if (slot.dataset.value) {
             setSlotValue(i, '');
           } else {
             const prev = prevEditable(i);
@@ -422,10 +424,12 @@
   }
 
   function checkSpelling() {
+    if (questionAnswered) return;
     const q = quizQuestions[currentQuizIndex];
+    if (!q) return;
+
     const answer = getSpelledWord();
     const feedback = document.getElementById('spelling-feedback');
-    const correct = answer === q.word.toLowerCase();
 
     if (answer.length < q.word.length) {
       feedback.textContent = 'Fill in all letters first.';
@@ -433,10 +437,14 @@
       return;
     }
 
+    questionAnswered = true;
+    const correct = answer.toLowerCase() === q.word.toLowerCase();
+
     document.querySelectorAll('.letter-slot').forEach(s => s.blur());
 
     if (correct) {
-      feedback.innerHTML = `✅ Correct!`;
+      quizCorrect++;
+      feedback.textContent = '✅ Correct!';
       feedback.className = 'spelling-feedback correct';
       document.querySelectorAll('.letter-slot').forEach(s => s.classList.add('correct'));
     } else {
@@ -445,8 +453,9 @@
       // Show the correct letters
       const slots = document.querySelectorAll('.letter-slot');
       q.word.split('').forEach((char, i) => {
-        if (slots[i].dataset.value !== char) {
+        if ((slots[i].dataset.value || '') !== char) {
           slots[i].textContent = char;
+          slots[i].dataset.value = char;
           slots[i].classList.add('wrong');
         } else {
           slots[i].classList.add('correct');
@@ -454,11 +463,13 @@
       });
     }
 
-    const idx = words.findIndex(w => w.word === q.word);
-    if (idx >= 0) {
-      words[idx].seenTimes++;
-      if (correct) words[idx].seenTimes++;
-      saveWords(words);
+    // Only correct spellings count toward mastery
+    if (correct) {
+      const idx = words.findIndex(w => w.word === q.word);
+      if (idx >= 0) {
+        words[idx].seenTimes = (words[idx].seenTimes || 0) + 1;
+        saveWords(words);
+      }
     }
 
     setTimeout(() => {
@@ -473,20 +484,22 @@
     const resultEl = document.getElementById('quiz-result');
     resultEl.classList.remove('hidden');
 
-    const fromQuiz = quizQuestions.filter(q => {
-      const w = words.find(w2 => w2.word === q.word);
-      return w && w.seenTimes > 0;
-    }).length;
-
+    const total = quizQuestions.length;
+    const pct = total > 0 ? Math.round((quizCorrect / total) * 100) : 0;
     document.getElementById('quiz-result-score').textContent =
-      `Session complete! You reviewed ${fromQuiz} words. Keep building your vocabulary!`;
+      `You spelled ${quizCorrect} of ${total} correctly (${pct}%). Keep building your vocabulary!`;
+
+    document.getElementById('quiz-score').textContent = '';
   }
 
+  // ─── Helpers ──────────────────────────────
   function escapeHtml(str) {
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  }
-  function escapeJs(str) {
-    return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   // ─── Event Listeners ──────────────────────
